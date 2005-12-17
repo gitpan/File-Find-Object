@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# $Id: 01ffo.t,v 1.1 2005/06/18 18:21:35 nanardon Exp $
+# $Id: 01ffo.t 13 2005-12-17 21:14:31Z nanardon $
 
 use strict;
 use warnings;
@@ -15,8 +15,11 @@ mkdir('t/dir/b');
 open(my $h, ">", 't/dir/file');
 close($h);
 
-symlink('.', 't/dir/link');
-
+# symlink does not exists everywhere (windows)
+# if it failed, this does not matter
+eval {
+    symlink('.', 't/dir/link');
+};
 
 my (@res1, @res2);
 my $tree = File::Find::Object->new(
