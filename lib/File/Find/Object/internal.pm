@@ -1,20 +1,8 @@
-# $Id: internal.pm 13 2005-12-17 21:14:31Z nanardon $
+# $Id: internal.pm 28 2006-03-28 08:23:49Z shlomif $
 
 #- Olivier Thauvin <olivier.thauvin@aerov.jussieu.fr>
 
-#- This program is free software; you can redistribute it and/or modify
-#- it under the terms of the GNU General Public License as published by
-#- the Free Software Foundation; either version 2, or (at your option)
-#- any later version.
-#-
-#- This program is distributed in the hope that it will be useful,
-#- but WITHOUT ANY WARRANTY; without even the implied warranty of
-#- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#- GNU General Public License for more details.
-#-
-#- You should have received a copy of the GNU General Public License
-#- along with this program; if not, write to the Free Software
-#- Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+# This program is free software distributed under the same terms as Parrot.
 
 package File::Find::Object::internal;
 
@@ -25,11 +13,13 @@ use File::Find::Object;
 use vars qw(@ISA);
 @ISA = qw(File::Find::Object);
 
+use File::Spec;
+
 sub new {
     my ($class, $from) = @_;
     my $self = {
         _father => $from,
-        _top => $from->{_top},
+        _top => $from->_top,
         dir => $from->current_path,
     };
 
@@ -44,7 +34,10 @@ sub new {
 
 sub open_dir {
     my ($self) = @_;
-    opendir($self->{_handle}, $self->{dir}) or return undef;
+    opendir(my $handle, $self->{dir}) or return undef;
+    $self->{_files} =
+        [ sort { $a cmp $b } File::Spec->no_upwards(readdir($handle)) ];
+    closedir($handle);
     my @st = stat($self->{dir});
     $self->{inode} = $st[1];
     $self->{dev} = $st[0];
@@ -59,13 +52,13 @@ sub me_die {
 
 sub become_default {
     my ($self) = @_;
-    $self->{_top}->{_current} = $self;
+    $self->_top->{_current} = $self;
     0
 }
 
 sub set_current {
     my ($self, $current) = @_;
-    $self->{_top}->{_current} = $current;
+    $self->_top->{_current} = $current;
 }
 
 sub current_path {
@@ -79,8 +72,8 @@ sub check_subdir {
     my ($self) = @_;
     my @st = stat($self->current_path());
     !-d _ and return 0;
-    -l $self->current_path() && !$self->{_top}->{followlink} and return 0;
-    $st[0] != $self->{dev} && $self->{_top}->{nocrossfs} and return 0;
+    -l $self->current_path() && !$self->_top->{followlink} and return 0;
+    $st[0] != $self->{dev} && $self->_top->{nocrossfs} and return 0;
     my $ptr = $self; my $rc;
     while($ptr->{_father}) {
         if($ptr->{inode} == $st[1] && $ptr->{dev} == $st[0]) {
@@ -99,8 +92,7 @@ sub check_subdir {
 
 sub movenext {
     my ($self) = @_;
-    my $h = $self->{_handle};
-    if ($self->{currentfile} = readdir($h)) {
+    if ($self->{currentfile} = shift(@{$self->{_files}})) {
         $self->{_action} = {};
         return 1;
     } else {

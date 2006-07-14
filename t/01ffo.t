@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# $Id: 01ffo.t 13 2005-12-17 21:14:31Z nanardon $
+# $Id: 01ffo.t 11 2005-12-17 21:12:26Z nanardon $
 
 use strict;
 use warnings;
