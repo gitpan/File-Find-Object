@@ -1,4 +1,4 @@
-# $Id: Object.pm 28 2006-03-28 08:23:49Z shlomif $
+# $Id: Object.pm 59 2006-07-20 11:56:33Z shlomif $
 
 #- Olivier Thauvin <olivier.thauvin@aerov.jussieu.fr>
 
@@ -9,15 +9,16 @@ package File::Find::Object;
 
 use strict;
 use warnings;
+
+use Carp;
+
 use File::Find::Object::internal;
 
-our $VERSION = '0.0.3';
+our $VERSION = '0.0.4';
 
 sub new {
     my ($class, $options, @files) = @_;
     my $tree = {
-        _father => undef,
-        _current => undef,
         files => [ @files ],
         ind => -1,
         
@@ -26,21 +27,31 @@ sub new {
         followlink => $options->{followlink},
         filter => $options->{filter},
         callback => $options->{callback},
+        _dir_stack => [],
     };
     bless($tree, $class);
 }
 
-sub _top
+sub _dir_stack
 {
     my $self = shift;
-    if (defined($self->{_top}))
+    if (@_)
     {
-        return $self->{_top};
+        $self->{_dir_stack} = shift;
     }
-    else
+    return $self->{_dir_stack};
+}
+
+sub _curr_file
+{
+    my $self = shift;
+
+    if (@_)
     {
-        return $self;
+        $self->{_curr_file} = shift;
     }
+
+    return $self->{_curr_file};
 }
 
 sub DESTROY {
@@ -49,14 +60,20 @@ sub DESTROY {
 #    printf STDERR "destroy `%s'\n", $self->{dir} || "--";
 }
 
+sub _current
+{
+    my $self = shift;
+    return $self->_dir_stack()->[-1] || $self;
+}
+
 sub next {
     my ($self) = @_;
     while (1) {
-        my $current = $self->{_current} || $self;
-        $current->_process_current and return $self->{item} = $current->current_path;
-        $current = $self->{_current} || $self;
-        if(!$current->movenext) {
-            $current->me_die and return $self->{item} = undef;
+        my $current = $self->_current();
+        $self->_process_current($current) and return $self->{item} = $self->current_path($current);
+        $current = $self->_current();
+        if(!$self->movenext) {
+            $self->me_die($current) and return $self->{item} = undef;
         }
     }
 }
@@ -66,82 +83,210 @@ sub item {
     $self->{item}
 }
 
-sub movenext {
-    my ($self) = @_;
+sub _father
+{
+    my ($self, $current) = @_;
+
+    if (!defined($current->{idx}))
+    {
+        return undef;
+    }
+    elsif ($current->{idx} >= 1)
+    {
+        return $self->_dir_stack()->[$current->{idx}-1];
+    }
+    else
+    {
+        return $self;
+    }
+}
+
+sub _movenext_with_current
+{
+    my $self = shift;
+    if ($self->_current->_curr_file(
+            shift(@{$self->_father($self->_current)->{_files}})
+       ))
+    {
+        $self->_current->{_action} = {};
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+sub _movenext_wo_current
+{
+    my $self = shift;
+
     $self->{ind} > @{$self->{files}} and return;
     $self->{ind}++;
-    $self->{currentfile} = ${$self->{files}}[$self->{ind}];
+    $self->_curr_file(${$self->{files}}[$self->{ind}]);
     $self->{_action} = {};
     1;
 }
 
+sub movenext {
+    my ($self) = @_;
+    if (@{$self->_dir_stack()})
+    {
+        return $self->_movenext_with_current();
+    }
+    else
+    {
+        return $self->_movenext_wo_current();
+    }
+}
+
 sub me_die {
-    my ($self) = @_;
-    1;
-}
-
-sub become_default {
-    my ($self) = @_;
-    $self->{_current} = undef;
-}
-
-sub set_current {
+    if (@_ != 2)
+    {
+        confess "Hello";
+    }
     my ($self, $current) = @_;
-    $self->{_current} = $current;
+
+    if ($self eq $current)
+    {
+        return 1;
+    }
+
+    $self->become_default($self->_father($current));
+    return 0;
+}
+
+sub become_default
+{
+    my ($self, $current) = @_;
+
+    if ($self eq $current)
+    {
+        @{$self->_dir_stack()} = ();
+    }
+    else
+    {
+        while (scalar(@{$self->_dir_stack()}) != $current->{idx} + 1)
+        {
+            pop(@{$self->_dir_stack()});
+        }
+    }
+
+    return 0;
 }
 
 # Return true if there is somthing next
 sub _process_current {
-    my ($self) = @_;
+    my ($self, $current) = @_;
    
-    $self->{currentfile} or return 0;
+    $current->_curr_file() or return 0;
 
-    $self->isdot and return 0;
-    $self->filter or return 0;  
+    $self->isdot($current) and return 0;
+    $self->filter($current) or return 0;  
 
-    foreach ($self->_top->{depth} ? qw/b a/ : qw/a b/) {
-        if ($self->{_action}{$_}) {
+    foreach ($self->{depth} ? qw/b a/ : qw/a b/) {
+        if ($current->{_action}{$_}) {
             next;
         }
-        $self->{_action}{$_} = 1;
+        $current->{_action}{$_} = 1;
         if($_ eq 'a') {
-            if ($self->_top->{callback}) {
-                $self->_top->{callback}->($self->current_path());
+            if ($self->{callback}) {
+                $self->{callback}->($self->current_path($current));
             }
             return 1;
         }
             
         if ($_ eq 'b') {
-            $self->check_subdir or next;
-            my $newtree = File::Find::Object::internal->new($self) or next;
-            $self->set_current($newtree);
+            $self->check_subdir($current) or next;
+            push @{$self->_dir_stack()}, 
+                File::Find::Object::internal->new(
+                    $self,
+                    $current, 
+                    scalar(@{$self->_dir_stack()})
+                );
             return 0;
         }
     }
-    0
+    return 0;
 }
 
-sub isdot {
-    0;
+sub isdot
+{
+    my ($self, $current) = @_;
+
+    my $file = $current->_curr_file();
+
+    return ($file eq ".." || $file eq ".");
 }
 
 sub filter {
-    my ($self) = @_;
-    return defined($self->_top->{filter}) ?
-        $self->_top->{filter}->($self->current_path()) :
+    my ($self, $current) = @_;
+    return defined($self->{filter}) ?
+        $self->{filter}->($self->current_path($current)) :
         1;
 }
 
-sub check_subdir {
-    1;
+sub check_subdir 
+{
+    my ($self, $current) = @_;
+
+    if ($self eq $current)
+    {
+        return 1;
+    }
+    my @st = stat($self->current_path($current));
+    if (!-d _)
+    {
+        return 0;
+    }
+    if (-l $self->current_path($current) && !$self->{followlink})
+    {
+        return 0;
+    }
+    if ($st[0] != $self->_father($current)->{dev} && $self->{nocrossfs})
+    {
+        return 0;
+    }
+    my $ptr = $current; my $rc;
+    while($self->_father($ptr)) {
+        if($self->_father($ptr)->{inode} == $st[1] && $self->_father($ptr) == $st[0]) {
+            $rc = 1;
+            last;
+        }
+        $ptr = $self->_father($ptr);
+    }
+    if ($rc) {
+        printf(STDERR "Avoid loop " . $self->_father($ptr)->{dir} . " => %s\n",
+            $self->current_path($current));
+        return 0;
+    }
+    return 1;
 }
 
 sub current_path {
-    my ($self) = @_;
-    $self->{currentfile};
+    my ($self, $current) = @_;
+
+    if ($self eq $current)
+    {
+        return $self->_curr_file;
+    }
+
+    my $p = $self->_father($current)->{dir};
+    $p =~ s!/+$!!; #!
+    $p .= '/' . $current->_curr_file;
+
+    return $p;
 }
 
-1
+sub open_dir {
+    my ($self) = @_;
+    opendir(my $handle, $self->{dir}) or return undef;
+    $self->{_files} =
+        [ sort { $a cmp $b } File::Spec->no_upwards(readdir($handle)) ];
+    closedir($handle);
+    my @st = stat($self->{dir});
+    $self->{inode} = $st[1];
+    $self->{dev} = $st[0];
+    return 1;
+}
 
 __END__
 
