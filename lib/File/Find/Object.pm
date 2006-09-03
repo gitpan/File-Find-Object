@@ -1,63 +1,85 @@
-# $Id: Object.pm 59 2006-07-20 11:56:33Z shlomif $
+package File::Find::Object::PathComponent;
 
-#- Olivier Thauvin <olivier.thauvin@aerov.jussieu.fr>
+use strict;
+use warnings;
 
-# This program is free software, distributed under the same terms as 
-# Parrot.
+use base 'File::Find::Object::Base';
+
+use File::Spec;
+
+
+sub new {
+    my ($class, $top, $from, $index) = @_;
+
+    my $self = {};
+    bless $self, $class;
+
+    $self->dir($top->current_path($from));
+    $self->idx($index);
+
+    bless($self, $class);
+
+    $from->dir($self->dir());
+
+    return $top->open_dir($top->_father($self)) ? $self : undef;
+}
 
 package File::Find::Object;
 
 use strict;
 use warnings;
 
+use base 'File::Find::Object::Base';
+
+__PACKAGE__->mk_accessors(qw(
+    _dir_stack
+    item
+    _targets
+    _target_index
+));
+
+sub _get_options_ids
+{
+    my $class = shift;
+    return [qw(
+        callback
+        depth
+        filter
+        followlink
+        nocrossfs
+    )];
+}
+
+__PACKAGE__->mk_accessors(@{__PACKAGE__->_get_options_ids()});
+
 use Carp;
 
-use File::Find::Object::internal;
-
-our $VERSION = '0.0.4';
+our $VERSION = '0.0.5';
 
 sub new {
-    my ($class, $options, @files) = @_;
+    my ($class, $options, @targets) = @_;
+
     my $tree = {
-        files => [ @files ],
-        ind => -1,
         
-        depth => $options->{depth},
-        nocrossfs => $options->{nocrossfs},
-        followlink => $options->{followlink},
-        filter => $options->{filter},
-        callback => $options->{callback},
         _dir_stack => [],
     };
+
     bless($tree, $class);
-}
 
-sub _dir_stack
-{
-    my $self = shift;
-    if (@_)
+    foreach my $opt (@{$tree->_get_options_ids()})
     {
-        $self->{_dir_stack} = shift;
+        $tree->set($opt, $options->{$opt});
     }
-    return $self->{_dir_stack};
-}
+    $tree->_targets([ @targets ]);
+    $tree->_target_index(-1);
 
-sub _curr_file
-{
-    my $self = shift;
-
-    if (@_)
-    {
-        $self->{_curr_file} = shift;
-    }
-
-    return $self->{_curr_file};
+    return $tree;
 }
 
 sub DESTROY {
     my ($self) = @_;
 #    print STDERR join(" ", caller)."\n";
-#    printf STDERR "destroy `%s'\n", $self->{dir} || "--";
+#    printf STDERR "destroy `%s'\n", $self->dir() || "--";
 }
 
 sub _current
@@ -70,30 +92,31 @@ sub next {
     my ($self) = @_;
     while (1) {
         my $current = $self->_current();
-        $self->_process_current($current) and return $self->{item} = $self->current_path($current);
+        if ($self->_process_current($current))
+        {
+            return $self->item($self->current_path($current));
+        }
         $current = $self->_current();
         if(!$self->movenext) {
-            $self->me_die($current) and return $self->{item} = undef;
+            if ($self->me_die($current))
+            {
+                return $self->item(undef);
+            }
         }
     }
-}
-
-sub item {
-    my ($self) = @_;
-    $self->{item}
 }
 
 sub _father
 {
     my ($self, $current) = @_;
 
-    if (!defined($current->{idx}))
+    if (!defined($current->idx()))
     {
         return undef;
     }
-    elsif ($current->{idx} >= 1)
+    elsif ($current->idx() >= 1)
     {
-        return $self->_dir_stack()->[$current->{idx}-1];
+        return $self->_dir_stack()->[$current->idx()-1];
     }
     else
     {
@@ -105,24 +128,36 @@ sub _movenext_with_current
 {
     my $self = shift;
     if ($self->_current->_curr_file(
-            shift(@{$self->_father($self->_current)->{_files}})
+            shift(@{$self->_father($self->_current)->_files()})
        ))
     {
-        $self->_current->{_action} = {};
+        $self->_current->_action({});
         return 1;
     } else {
         return 0;
     }
 }
 
+sub _increment_target_index
+{
+    my $self = shift;
+    $self->_target_index(
+        $self->_target_index() + 1
+    );
+}
+
 sub _movenext_wo_current
 {
     my $self = shift;
 
-    $self->{ind} > @{$self->{files}} and return;
-    $self->{ind}++;
-    $self->_curr_file(${$self->{files}}[$self->{ind}]);
-    $self->{_action} = {};
+    if ($self->_target_index() > @{$self->_targets()})
+    {
+        return 0;
+    }
+    $self->_increment_target_index();
+
+    $self->_curr_file($self->_targets()->[$self->_target_index()]);
+    $self->_action({});
     1;
 }
 
@@ -164,7 +199,7 @@ sub become_default
     }
     else
     {
-        while (scalar(@{$self->_dir_stack()}) != $current->{idx} + 1)
+        while (scalar(@{$self->_dir_stack()}) != $current->idx() + 1)
         {
             pop(@{$self->_dir_stack()});
         }
@@ -180,24 +215,25 @@ sub _process_current {
     $current->_curr_file() or return 0;
 
     $self->isdot($current) and return 0;
-    $self->filter($current) or return 0;  
+    $self->_filter_wrapper($current) or return 0;  
 
-    foreach ($self->{depth} ? qw/b a/ : qw/a b/) {
-        if ($current->{_action}{$_}) {
+    foreach my $action ($self->depth() ? qw/b a/ : qw/a b/)
+    {
+        if ($current->_action->{$action}) {
             next;
         }
-        $current->{_action}{$_} = 1;
-        if($_ eq 'a') {
-            if ($self->{callback}) {
-                $self->{callback}->($self->current_path($current));
+        $current->_action->{$action} = 1;
+        if($action eq 'a') {
+            if ($self->callback()) {
+                $self->callback()->($self->current_path($current));
             }
             return 1;
         }
             
-        if ($_ eq 'b') {
+        if ($action eq 'b') {
             $self->check_subdir($current) or next;
             push @{$self->_dir_stack()}, 
-                File::Find::Object::internal->new(
+                File::Find::Object::PathComponent->new(
                     $self,
                     $current, 
                     scalar(@{$self->_dir_stack()})
@@ -217,10 +253,10 @@ sub isdot
     return ($file eq ".." || $file eq ".");
 }
 
-sub filter {
+sub _filter_wrapper {
     my ($self, $current) = @_;
-    return defined($self->{filter}) ?
-        $self->{filter}->($self->current_path($current)) :
+    return defined($self->filter()) ?
+        $self->filter()->($self->current_path($current)) :
         1;
 }
 
@@ -237,24 +273,24 @@ sub check_subdir
     {
         return 0;
     }
-    if (-l $self->current_path($current) && !$self->{followlink})
+    if (-l $self->current_path($current) && !$self->followlink())
     {
         return 0;
     }
-    if ($st[0] != $self->_father($current)->{dev} && $self->{nocrossfs})
+    if ($st[0] != $self->_father($current)->dev() && $self->nocrossfs())
     {
         return 0;
     }
     my $ptr = $current; my $rc;
     while($self->_father($ptr)) {
-        if($self->_father($ptr)->{inode} == $st[1] && $self->_father($ptr) == $st[0]) {
+        if($self->_father($ptr)->inode() == $st[1] && $self->_father($ptr) == $st[0]) {
             $rc = 1;
             last;
         }
         $ptr = $self->_father($ptr);
     }
     if ($rc) {
-        printf(STDERR "Avoid loop " . $self->_father($ptr)->{dir} . " => %s\n",
+        printf(STDERR "Avoid loop " . $self->_father($ptr)->dir() . " => %s\n",
             $self->current_path($current));
         return 0;
     }
@@ -269,7 +305,7 @@ sub current_path {
         return $self->_curr_file;
     }
 
-    my $p = $self->_father($current)->{dir};
+    my $p = $self->_father($current)->dir();
     $p =~ s!/+$!!; #!
     $p .= '/' . $current->_curr_file;
 
@@ -277,16 +313,19 @@ sub current_path {
 }
 
 sub open_dir {
-    my ($self) = @_;
-    opendir(my $handle, $self->{dir}) or return undef;
-    $self->{_files} =
-        [ sort { $a cmp $b } File::Spec->no_upwards(readdir($handle)) ];
+    my ($self, $current) = @_;
+    opendir(my $handle, $current->dir()) or return undef;
+    $current->_files(
+        [ sort { $a cmp $b } File::Spec->no_upwards(readdir($handle)) ]
+    );
     closedir($handle);
-    my @st = stat($self->{dir});
-    $self->{inode} = $st[1];
-    $self->{dev} = $st[0];
+    my @st = stat($current->dir());
+    $current->inode($st[1]);
+    $current->dev($st[0]);
     return 1;
 }
+
+1;
 
 __END__
 
@@ -318,10 +357,10 @@ function, but setting a callback is still possible.
 
 =head2 new
 
-    my $ffo = File::Find::Object->new( { options }, @files);
+    my $ffo = File::Find::Object->new( { options }, @targets);
 
-Create a new File::Find::Object object. @files is the list of directories
-- or files - the object should explore.
+Create a new File::Find::Object object. C<@targets> is the list of 
+directories or files which the object should explore.
 
 =head3 options
 
