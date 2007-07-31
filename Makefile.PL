@@ -1,4 +1,4 @@
-# $Id: Makefile.PL 65 2006-09-02 11:27:29Z shlomif $
+# $Id: Makefile.PL 90 2007-07-31 13:26:06Z shlomif $
 
 use ExtUtils::MakeMaker;
 
@@ -20,4 +20,5 @@ WriteMakefile(
     {
         'Class::Accessor' => 0,
     },
+    PL_FILES => {},
 );
