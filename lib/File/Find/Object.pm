@@ -55,7 +55,7 @@ __PACKAGE__->mk_accessors(@{__PACKAGE__->_get_options_ids()});
 
 use Carp;
 
-our $VERSION = '0.0.8';
+our $VERSION = '0.0.9';
 
 sub new {
     my ($class, $options, @targets) = @_;
@@ -162,24 +162,42 @@ sub _movenext_with_current
 sub _increment_target_index
 {
     my $self = shift;
-    $self->_target_index(
-        $self->_target_index() + 1
-    );
+    $self->_target_index( $self->_target_index() + 1 );
+
+    return ($self->_target_index() < scalar(@{$self->_targets()}));
+}
+
+sub _calc_next_target
+{
+    my $self = shift;
+
+    my $target = $self->_targets()->[$self->_target_index()];
+
+    return defined($target) ? File::Spec->canonpath($target) : undef;
+}
+
+sub _move_to_next_target
+{
+    my $self = shift; 
+
+    return $self->_curr_file($self->_calc_next_target());
 }
 
 sub _movenext_wo_current
 {
     my $self = shift;
 
-    if ($self->_target_index() > @{$self->_targets()})
+    while ($self->_increment_target_index())
     {
-        return 0;
-    }
-    $self->_increment_target_index();
+        if (-e $self->_move_to_next_target())
+        {
+            $self->_action({});
 
-    $self->_curr_file($self->_targets()->[$self->_target_index()]);
-    $self->_action({});
-    1;
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 sub _movenext {
@@ -294,14 +312,17 @@ sub _check_subdir
 {
     my ($self, $current) = @_;
 
-    if ($self eq $current)
-    {
-        return 1;
-    }
+    # If current is not a directory always return 0, because we may
+    # be asked to traverse single-files.
     my @st = stat($self->_current_path($current));
     if (!-d _)
     {
         return 0;
+    }
+
+    if ($self eq $current)
+    {
+        return 1;
     }
     if (-l $self->_current_path($current) && !$self->followlink())
     {
@@ -444,7 +465,7 @@ File::Find::Object does same job as File::Find but works like an object and
 with an iterator. As File::Find is not object oriented, one cannot perform
 multiple searches in the same application. The second problem of File::Find 
 is its file processing: after starting its main loop, one cannot easilly wait 
-for another event an so get the next result.
+for another event and so get the next result.
 
 With File::Find::Object you can get the next file by calling the next() 
 function, but setting a callback is still possible.
