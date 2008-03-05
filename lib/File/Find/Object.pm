@@ -55,7 +55,7 @@ __PACKAGE__->mk_accessors(@{__PACKAGE__->_get_options_ids()});
 
 use Carp;
 
-our $VERSION = '0.0.9';
+our $VERSION = '0.1.0';
 
 sub new {
     my ($class, $options, @targets) = @_;
@@ -375,25 +375,27 @@ sub _open_dir {
     $current->_last_dir_scanned($current->dir());
 
     my $handle;
+    my @files;
     if (!opendir($handle, $current->dir()))
     {
-        return $current->_open_dir_ret(undef);
+        # Handle this error gracefully.        
     }
-    my @files = (sort { $a cmp $b } File::Spec->no_upwards(readdir($handle)));
-    closedir($handle);
-
+    else
+    {
+        @files = (sort { $a cmp $b } File::Spec->no_upwards(readdir($handle)));
+        closedir($handle);
+    }
+    
     $current->_files(
         [ @files ]
     );
     $current->_traverse_to(
         [ @files ]
     );
-
     
     my @st = stat($current->dir());
     $current->inode($st[1]);
     $current->dev($st[0]);
-
 
     return $current->_open_dir_ret(1);
 }
