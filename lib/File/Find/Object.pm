@@ -14,14 +14,16 @@ sub new {
     my $self = {};
     bless $self, $class;
 
-    $self->dir($top->_current_path($from));
+    $self->_dir($top->_current_components_copy());
     $self->idx($index);
 
     $self->_last_dir_scanned(undef);
 
-    $from->dir($self->dir());
+    $from->_dir($self->_dir_copy());
 
-    return $top->_open_dir($top->_father($self)) ? $self : undef;
+    $self->_reset_actions();
+
+    return $top->_open_dir() ? $self : undef;
 }
 
 package File::Find::Object;
@@ -31,10 +33,11 @@ use warnings;
 
 use base 'File::Find::Object::Base';
 
+use File::Find::Object::Result;
+
 __PACKAGE__->mk_accessors(qw(
-    _current_idx
     _dir_stack
-    item
+    item_obj
     _targets
     _target_index
 ));
@@ -53,9 +56,54 @@ sub _get_options_ids
 
 __PACKAGE__->mk_accessors(@{__PACKAGE__->_get_options_ids()});
 
+# This is a variation of the Conditional-to-Inheritance refactoring - 
+# we have two methods - one if _is_top is true
+# and the other if it's false.
+#
+# This has been a common pattern in the code and should be eliminated.
+
+sub _top_it
+{
+    my ($pkg, $methods) = @_;
+
+    no strict 'refs';
+    foreach my $method (@$methods)
+    {
+        *{$pkg."::".$method} =
+            do {
+                my $m = $method;
+                my $top = "_top_$m";
+                my $non = "_non_top_$m";
+                sub {
+                    my $self = shift;
+                    return $self->_is_top()
+                        ? $self->$top(@_)
+                        : $self->$non(@_)
+                        ;
+                };
+            };
+    }
+
+    return;
+}
+
+__PACKAGE__->_top_it([qw(
+    _check_subdir_helper
+    _current
+    _father_components
+    _me_die
+    _movenext
+    )]
+);
+
+__PACKAGE__->_make_copy_methods([qw(
+    _current_components
+    )]
+);
+
 use Carp;
 
-our $VERSION = '0.1.0';
+our $VERSION = '0.1.1';
 
 sub new {
     my ($class, $options, @targets) = @_;
@@ -71,73 +119,123 @@ sub new {
     {
         $tree->set($opt, $options->{$opt});
     }
-    $tree->_targets([ @targets ]);
+    $tree->_targets(\@targets);
     $tree->_target_index(-1);
-    $tree->_current_idx(-1);
+    $tree->_reset_actions();
 
     $tree->_last_dir_scanned(undef);
 
     return $tree;
 }
 
-sub DESTROY {
-    my ($self) = @_;
+#sub DESTROY {
+#    my ($self) = @_;
 #    print STDERR join(" ", caller)."\n";
-#    printf STDERR "destroy `%s'\n", $self->dir() || "--";
-}
+#    printf STDERR "destroy `%s'\n", $self->_dir_as_string || "--";
+#}
 
-sub _current
+sub _top__current
 {
     my $self = shift;
 
-    my $dir_stack = $self->_dir_stack();
-
-    if ($self->_current_idx < 0)
-    {
-        return $self;
-    }
-    else
-    {
-        return $dir_stack->[$self->_current_idx];
-    }
+    return $self;
 }
 
-sub next {
+sub _non_top__current
+{
+    my $self = shift;
+
+    return $self->_dir_stack->[-1];
+}
+
+sub _is_top
+{
+    my $self = shift;
+
+    return ! @{$self->_dir_stack()};
+}
+
+sub _current_path
+{
+    my $self = shift;
+
+    return File::Spec->catfile(@{$self->_current_components_copy()});
+}
+
+sub _calc_current_item_obj {
+    my $self = shift;
+
+    my $components = $self->_current_components_copy();
+    my $base = shift(@$components);
+    
+    my @basename = ();
+    my $path = $self->_current_path();
+    my $is_dir = -d $path;
+    if (! $is_dir)
+    {
+        @basename = (basename => pop(@$components));
+    }
+
+    return File::Find::Object::Result->new(
+        {
+            @basename,
+            path => $path,
+            is_dir => $is_dir,
+            dir_components => $components,
+            base => $base,
+        }
+    );
+}
+
+sub _calc_next_obj {
     my ($self) = @_;
     while (1) {
-        my $current = $self->_current();
-        if ($self->_process_current($current))
+        if ($self->_process_current())
         {
-            return $self->item($self->_current_path($current));
+            return $self->_calc_current_item_obj();
         }
-        $current = $self->_current();
         if(!$self->_movenext) {
-            if ($self->_me_die($current))
+            if ($self->_me_die())
             {
-                return $self->item(undef);
+                return undef();
             }
         }
     }
 }
 
+sub next_obj {
+    my $self = shift;
+
+    my $obj = $self->_calc_next_obj();
+
+    return $self->item_obj($obj);
+}
+
+sub next {
+    my $self = shift;
+
+    $self->next_obj();
+
+    return $self->item();
+}
+
+sub item {
+    my $self = shift;
+
+    return $self->item_obj() ? $self->item_obj()->path() : undef;
+}
+
 sub _father
 {
-    my ($self, $current) = @_;
+    my ($self, $level) = @_;
 
-    if (!defined($current))
-    {
-        require Data::Dumper;
-        print Data::Dumper->new([$self],['$self'])->Dump();
-        confess "Current is undef";
-    }
-
-    if (!defined($current->idx()))
+    if (!defined($level->idx()))
     {
         return undef;
     }
-    elsif ($current->idx() >= 1)
+    elsif ($level->idx() >= 1)
     {
-        return $self->_dir_stack()->[$current->idx()-1];
+        return $self->_dir_stack()->[$level->idx()-1];
     }
     else
     {
@@ -145,14 +243,20 @@ sub _father
     }
 }
 
-sub _movenext_with_current
+sub _current_father {
+    my $self = shift;
+
+    return $self->_father($self->_current);
+}
+
+sub _non_top__movenext
 {
     my $self = shift;
     if ($self->_current->_curr_file(
-            shift(@{$self->_father($self->_current)->_traverse_to()})
+            shift(@{$self->_current_father->_traverse_to()})
        ))
     {
-        $self->_current->_action({});
+        $self->_current->_reset_actions();
         return 1;
     } else {
         return 0;
@@ -183,7 +287,7 @@ sub _move_to_next_target
     return $self->_curr_file($self->_calc_next_target());
 }
 
-sub _movenext_wo_current
+sub _top__movenext
 {
     my $self = shift;
 
@@ -191,8 +295,7 @@ sub _movenext_wo_current
     {
         if (-e $self->_move_to_next_target())
         {
-            $self->_action({});
-
+            $self->_reset_actions();
             return 1;
         }
     }
@@ -200,101 +303,143 @@ sub _movenext_wo_current
     return 0;
 }
 
-sub _movenext {
-    my ($self) = @_;
-    if (@{$self->_dir_stack()})
-    {
-        return $self->_movenext_with_current();
-    }
-    else
-    {
-        return $self->_movenext_wo_current();
-    }
+sub _top__me_die {
+    return 1;
 }
 
-sub _me_die {
-    my ($self, $current) = @_;
+sub _non_top__me_die {
+    my $self = shift;
 
-    if ($self eq $current)
-    {
-        return 1;
-    }
+    $self->_become_default();
 
-    $self->_become_default($self->_father($current));
     return 0;
 }
 
 sub _become_default
 {
-    my ($self, $current) = @_;
+    my $self = shift;
 
-    if ($self eq $current)
+    my $father = $self->_current_father;
+
+    if ($self eq $father)
     {
         @{$self->_dir_stack()} = ();
-        $self->_current_idx(-1);
     }
     else
     {
-        while (scalar(@{$self->_dir_stack()}) != $current->idx() + 1)
+        while (scalar(@{$self->_dir_stack()}) != $father->idx() + 1)
         {
-            pop(@{$self->_dir_stack()});
-            $self->_current_idx($self->_current_idx()-1);
+            $self->_pop_item();
         }
     }
 
     return 0;
 }
 
+sub _pop_item
+{
+    my $self = shift;
+
+    pop(@{$self->_dir_stack()});
+
+    return;
+}
+
+sub _calc_actions
+{
+    my $self = shift;
+
+    my @actions = qw(_handle_callback _recurse);
+
+    if ($self->depth())
+    {
+        @actions = reverse(@actions);
+    }
+    return @actions;
+}
+
+sub _get_real_action
+{
+    my $self = shift;
+    my $action = shift;
+
+    return ($self->_calc_actions())[$action];
+}
+
+sub _shift_current_action
+{
+    my $self = shift;
+
+    my $action_proto = shift(@{$self->_current->_actions()});
+
+    if (!defined($action_proto))
+    {
+        return;
+    }
+    else
+    {
+        return $self->_get_real_action($action_proto);
+    }
+}
+
+sub _check_process_current {
+    my $self = shift;
+
+    return ($self->_current->_curr_file() && $self->_filter_wrapper());
+}
+
 # Return true if there is somthing next
 sub _process_current {
-    my ($self, $current) = @_;
-   
-    $current->_curr_file() or return 0;
+    my $self = shift;
 
-    $self->_filter_wrapper($current) or return 0;  
-
-    foreach my $action ($self->depth() ? qw(b a) : qw(a b))
+    if (!$self->_check_process_current())
     {
-        if ($current->_action->{$action}) {
-            next;
-        }
-        $current->_action->{$action} = 1;
-        if($action eq 'a') {
-            if ($self->callback()) {
-                $self->callback()->($self->_current_path($current));
-            }
-            return 1;
-        }
-            
-        if ($action eq 'b') {
-            my $status = $self->_recurse($current);
-            
-            if ($status eq "SKIP")
-            {
-                next;
-            }
-            else
-            {
-                $self->_current_idx($self->_current_idx()+1);
-                return $status;
-            }
+        return 0;
+    }
+    else
+    {
+        return $self->_process_current_actions();
+    }
+}
+
+sub _handle_callback {
+    my $self = shift;
+
+    if ($self->callback()) {
+        $self->callback()->($self->_current_path());
+    }
+
+    return 1;
+}
+
+sub _process_current_actions
+{
+    my $self = shift;
+
+    while (my $action = $self->_shift_current_action())
+    {
+        my $status = $self->$action();
+
+        if ($status ne "SKIP")
+        {
+            return $status;
         }
     }
+
     return 0;
 }
 
 sub _recurse
 {
-    my ($self, $current) = @_;
+    my $self = shift;
 
-    $self->_check_subdir($current) or 
+    $self->_check_subdir() or 
         return "SKIP";
-
 
     push @{$self->_dir_stack()}, 
         File::Find::Object::PathComponent->new(
             $self,
-            $current,
+            $self->_current(),
             scalar(@{$self->_dir_stack()})
         );
 
@@ -302,102 +447,118 @@ sub _recurse
 }
 
 sub _filter_wrapper {
-    my ($self, $current) = @_;
+    my $self = shift;
+
     return defined($self->filter()) ?
-        $self->filter()->($self->_current_path($current)) :
+        $self->filter()->($self->_current_path()) :
         1;
 }
 
 sub _check_subdir 
 {
-    my ($self, $current) = @_;
+    my $self = shift;
 
     # If current is not a directory always return 0, because we may
     # be asked to traverse single-files.
-    my @st = stat($self->_current_path($current));
+    my @st = stat($self->_current_path());
     if (!-d _)
     {
         return 0;
     }
+    else
+    {
+        return $self->_check_subdir_helper(\@st);
+    }
+}
 
-    if ($self eq $current)
-    {
-        return 1;
-    }
-    if (-l $self->_current_path($current) && !$self->followlink())
-    {
-        return 0;
-    }
-    if ($st[0] != $self->_father($current)->dev() && $self->nocrossfs())
-    {
-        return 0;
-    }
-    my $ptr = $current; my $rc;
-    while($self->_father($ptr)) {
-        if($self->_father($ptr)->inode() == $st[1] && $self->_father($ptr) == $st[0]) {
-            $rc = 1;
-            last;
-        }
-        $ptr = $self->_father($ptr);
-    }
-    if ($rc) {
-        printf(STDERR "Avoid loop " . $self->_father($ptr)->dir() . " => %s\n",
-            $self->_current_path($current));
-        return 0;
-    }
+sub _top__check_subdir_helper {
     return 1;
 }
 
-sub _current_path {
-    my ($self, $current) = @_;
+sub _find_ancestor_with_same_inode {
+    my $self = shift;
+    my $st = shift;
 
-    if ($self eq $current)
-    {
-        return $self->_curr_file;
+    my $ptr = $self->_current_father;
+
+    while($ptr) {
+        if ($ptr->_is_same_inode($st)) {
+            return $ptr;
+        }
+    }
+    continue {
+        $ptr = $self->_father($ptr);
     }
 
-    my $p = $self->_father($current)->dir();
-    
-    return File::Spec->catfile($p, $current->_curr_file);
+    return;
+}
+
+sub _warn_about_loop
+{
+    my $self = shift;
+    my $ptr = shift;
+
+    # Don't pass strings directly to the format.
+    # Instead - use %s
+    # This was a security problem.
+    printf(STDERR
+        "Avoid loop %s => %s\n",
+            $ptr->_dir_as_string(),
+            $self->_current_path()
+        );
+
+    return;
+}
+
+sub _non_top__check_subdir_helper {
+    my $self = shift;
+    my $st = shift;
+
+    if (-l $self->_current_path() && !$self->followlink())
+    {
+        return 0;
+    }
+
+    if ($st->[0] != $self->_current_father->_dev() && $self->nocrossfs())
+    {
+        return 0;
+    }
+
+    if (my $ptr = $self->_find_ancestor_with_same_inode($st)) {
+        $self->_warn_about_loop($ptr);
+        return 0;
+    }
+
+    return 1;
+}
+
+sub _current_components {
+    my $self = shift;
+
+    return
+    [
+        @{$self->_father_components()},
+        $self->_current->_curr_file
+    ];
+}
+
+sub _top__father_components {
+    my $self = shift; 
+
+    return [];
+}
+
+sub _non_top__father_components
+{
+    my $self = shift;
+
+    return $self->_current_father->_dir_copy();
 }
 
 sub _open_dir {
-    my ($self, $current) = @_;
+    my $self = shift;
 
-    if (defined($current->_last_dir_scanned()) &&
-        ($current->_last_dir_scanned() eq $current->dir()
-       )
-    )
-    {
-        return $current->_open_dir_ret();
-    }
-
-    $current->_last_dir_scanned($current->dir());
-
-    my $handle;
-    my @files;
-    if (!opendir($handle, $current->dir()))
-    {
-        # Handle this error gracefully.        
-    }
-    else
-    {
-        @files = (sort { $a cmp $b } File::Spec->no_upwards(readdir($handle)));
-        closedir($handle);
-    }
-    
-    $current->_files(
-        [ @files ]
-    );
-    $current->_traverse_to(
-        [ @files ]
-    );
-    
-    my @st = stat($current->dir());
-    $current->inode($st[1]);
-    $current->dev($st[0]);
-
-    return $current->_open_dir_ret(1);
+    return $self->_current()->_component_open_dir();
 }
 
 sub set_traverse_to
@@ -414,22 +575,19 @@ sub get_traverse_to
 {
     my $self = shift;
 
-    return [ @{$self->_current->_traverse_to()} ];
+    return $self->_current->_traverse_to_copy();
 }
 
 sub get_current_node_files_list
 {
     my $self = shift;
 
-    # Remming out because it doesn't work.
-    # $self->_father($self->_current)->dir($self->_current->dir());
-
-    $self->_current->dir($self->_current_path($self->_current()));
+    $self->_current->_dir($self->_current_components_copy());
 
     # _open_dir can return undef if $self->_current is not a directory.
-    if ($self->_open_dir($self->_current))
+    if ($self->_open_dir())
     {
-        return [ @{$self->_current->_files()}];
+        return $self->_current->_files_copy();
     }
     else
     {
@@ -455,7 +613,7 @@ File::Find::Object - An object oriented File::Find replacement
 =head1 SYNOPSIS
 
     use File::Find::Object;
-    my $tree = File::Find::Object->new({}, @dir);
+    my $tree = File::Find::Object->new({}, @targets);
 
     while (my $r = $tree->next()) {
         print $r ."\n";
@@ -523,6 +681,18 @@ the scan is completed.
 
 Returns the current filename found by the File::Find::Object object, i.e: the
 last value returned by next().
+
+=head2 next_obj
+
+Like next() only returns the result as a convenient 
+L<File::Find::Object::Result> object. C<< $ff->next() >> is equivalent to
+C<< $ff->next_obj()->path() >>.
+
+=head2 item_obj
+
+Like item() only returns the result as a convenient 
+L<File::Find::Object::Result> object. C<< $ff->item() >> is equivalent to
+C<< $ff->item_obj()->path() >>.
 
 =head2 $ff->set_traverse_to([@children])
 
