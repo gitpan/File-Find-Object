@@ -26,6 +26,21 @@ sub new {
     return $top->_open_dir() ? $self : undef;
 }
 
+sub _move_next
+{
+    my ($self, $top) = @_;
+
+    if (defined($self->_curr_file(
+            $top->_father($self)->_next_traverse_to()
+       )))
+    {
+        $self->_reset_actions();
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 package File::Find::Object;
 
 use strict;
@@ -92,7 +107,6 @@ __PACKAGE__->_top_it([qw(
     _current
     _father_components
     _me_die
-    _movenext
     )]
 );
 
@@ -103,7 +117,7 @@ __PACKAGE__->_make_copy_methods([qw(
 
 use Carp;
 
-our $VERSION = '0.1.2';
+our $VERSION = '0.1.3';
 
 sub new {
     my ($class, $options, @targets) = @_;
@@ -194,7 +208,7 @@ sub _calc_next_obj {
         {
             return $self->_calc_current_item_obj();
         }
-        if(!$self->_movenext) {
+        if(!$self->_master_move_to_next) {
             if ($self->_me_die())
             {
                 return undef();
@@ -249,20 +263,6 @@ sub _current_father {
     return $self->_father($self->_current);
 }
 
-sub _non_top__movenext
-{
-    my $self = shift;
-    if ($self->_current->_curr_file(
-            shift(@{$self->_current_father->_traverse_to()})
-       ))
-    {
-        $self->_current->_reset_actions();
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
 sub _increment_target_index
 {
     my $self = shift;
@@ -287,7 +287,7 @@ sub _move_to_next_target
     return $self->_curr_file($self->_calc_next_target());
 }
 
-sub _top__movenext
+sub _move_next
 {
     my $self = shift;
 
@@ -303,6 +303,12 @@ sub _top__movenext
     return 0;
 }
 
+sub _master_move_to_next {
+    my $self = shift;
+
+    return $self->_current()->_move_next($self);
+}
+
 sub _top__me_die {
     return 1;
 }
@@ -310,9 +316,7 @@ sub _top__me_die {
 sub _non_top__me_die {
     my $self = shift;
 
-    $self->_become_default();
-
-    return 0;
+    return $self->_become_default();
 }
 
 sub _become_default
@@ -385,7 +389,7 @@ sub _shift_current_action
 sub _check_process_current {
     my $self = shift;
 
-    return ($self->_current->_curr_file() && $self->_filter_wrapper());
+    return (defined($self->_current->_curr_file()) && $self->_filter_wrapper());
 }
 
 # Return true if there is somthing next
