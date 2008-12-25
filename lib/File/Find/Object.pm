@@ -117,7 +117,7 @@ __PACKAGE__->_make_copy_methods([qw(
 
 use Carp;
 
-our $VERSION = '0.1.3';
+our $VERSION = '0.1.4';
 
 sub new {
     my ($class, $options, @targets) = @_;
@@ -206,11 +206,12 @@ sub _calc_next_obj {
     while (1) {
         if ($self->_process_current())
         {
-            return $self->_calc_current_item_obj();
+            return $self->item_obj();
         }
         if(!$self->_master_move_to_next) {
             if ($self->_me_die())
             {
+                $self->item_obj(undef());
                 return undef();
             }
         }
@@ -220,9 +221,7 @@ sub _calc_next_obj {
 sub next_obj {
     my $self = shift;
 
-    my $obj = $self->_calc_next_obj();
-
-    return $self->item_obj($obj);
+    return $self->_calc_next_obj();
 }
 
 sub next {
@@ -408,6 +407,9 @@ sub _process_current {
 
 sub _handle_callback {
     my $self = shift;
+
+    # Calculate next_obj now so it will be ready for the callback.
+    $self->item_obj($self->_calc_current_item_obj());
 
     if ($self->callback()) {
         $self->callback()->($self->_current_path());

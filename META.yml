@@ -1,6 +1,6 @@
 ---
 name: File-Find-Object
-version: 0.1.3
+version: 0.1.4
 author: []
 abstract: An object oriented File::Find replacement
 license: perl
@@ -11,14 +11,14 @@ requires:
 provides:
   File::Find::Object:
     file: lib/File/Find/Object.pm
-    version: 0.1.3
+    version: 0.1.4
   File::Find::Object::Base:
     file: lib/File/Find/Object/Base.pm
   File::Find::Object::PathComponent:
     file: lib/File/Find/Object.pm
   File::Find::Object::Result:
     file: lib/File/Find/Object/Result.pm
-generated_by: Module::Build version 0.2808
+generated_by: Module::Build version 0.31
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html
   version: 1.2
