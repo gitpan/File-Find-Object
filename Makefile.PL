@@ -1,4 +1,4 @@
-# $Id: Makefile.PL 90 2007-07-31 13:26:06Z shlomif $
+# $Id: Makefile.PL 188 2009-01-07 21:42:36Z shlomif $
 
 use ExtUtils::MakeMaker;
 
@@ -18,7 +18,7 @@ WriteMakefile(
     VERSION_FROM => 'lib/File/Find/Object.pm',
     PREREQ_PM =>
     {
-        'Class::Accessor' => 0,
+        'Class::XSAccessor' => 0,
     },
     PL_FILES => {},
 );
