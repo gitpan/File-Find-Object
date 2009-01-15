@@ -109,6 +109,7 @@ use base 'File::Find::Object::Base';
 use File::Find::Object::Result;
 
 use Fcntl ':mode';
+use List::Util ();
 
 sub _get_options_ids
 {
@@ -137,6 +138,8 @@ use Class::XSAccessor
             item_obj
             _target_index
             _targets
+            _top_is_dir
+            _top_is_link
             _top_stat
             ), 
             @{__PACKAGE__->_get_options_ids()}
@@ -190,7 +193,7 @@ __PACKAGE__->_make_copy_methods([qw(
 
 use Carp;
 
-our $VERSION = '0.1.6';
+our $VERSION = '0.1.7';
 
 sub new {
     my ($class, $options, @targets) = @_;
@@ -246,12 +249,8 @@ sub _is_top
 
 =cut
 
-sub _curr_mode {
-    return shift->_top_stat->[2];
-}
-
 sub _curr_not_a_dir {
-    return !S_ISDIR( shift->_curr_mode() );
+    return !shift->_top_is_dir();
 }
 
 # Calculates _curr_path from $self->_curr_comps().
@@ -432,7 +431,14 @@ sub _fill_actions {
 sub _mystat {
     my $self = shift;
 
-    $self->_top_stat([stat($self->_curr_path())]);
+    $self->_top_stat([lstat($self->_curr_path())]);
+
+    $self->_top_is_dir(scalar(-d _));
+
+    if ($self->_top_is_link(scalar(-l _))) {
+        stat($self->_curr_path());
+        $self->_top_is_dir(scalar(-d _));
+    }
 
     return "SKIP";
 }
@@ -546,18 +552,10 @@ sub _top__check_subdir_helper {
 sub _find_ancestor_with_same_inode {
     my $self = shift;
 
-    my $ptr = $self->_current_father;
+    my $s = $self->_top_stat();
+    my $stack = $self->_dir_stack();
 
-    while($ptr) {
-        if ($ptr->_is_same_inode($self->_top_stat())) {
-            return $ptr;
-        }
-    }
-    continue {
-        $ptr = $self->_father($ptr);
-    }
-
-    return;
+    return List::Util::first { $_->_is_same_inode($s) } @{$stack}[0 .. $#$stack-1];
 }
 
 sub _warn_about_loop
@@ -568,11 +566,13 @@ sub _warn_about_loop
     # Don't pass strings directly to the format.
     # Instead - use %s
     # This was a security problem.
-    printf(STDERR
-        "Avoid loop %s => %s\n",
-            $ptr->_dir_as_string(),
-            $self->_curr_path()
-        );
+    warn(
+        sprintf(
+            "Avoid loop %s => %s\n",
+                $ptr->_dir_as_string(),
+                $self->_curr_path()
+        )
+    );
 
     return;
 }
@@ -580,7 +580,7 @@ sub _warn_about_loop
 sub _non_top__check_subdir_helper {
     my $self = shift;
 
-    if (S_ISLNK($self->_curr_mode()) && !$self->followlink())
+    if ($self->_top_is_link() && !$self->followlink())
     {
         return 0;
     }
