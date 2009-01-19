@@ -8,15 +8,13 @@ use base 'File::Find::Object::PathComp';
 use File::Spec;
 
 sub new {
-    my ($class, $top, $from, $index) = @_;
+    my ($class, $top, $from) = @_;
 
     my $self = {};
     bless $self, $class;
 
     $self->_dir([ @{$top->_curr_comps()} ]);
     $self->_stat_ret($top->_top_stat_copy());
-
-    $self->idx($index);
 
     $self->_last_dir_scanned(undef);
 
@@ -34,7 +32,7 @@ sub _move_next
     my ($self, $top) = @_;
 
     if (defined($self->_curr_file(
-            $top->_father($self)->_next_traverse_to()
+            $top->_current_father()->_next_traverse_to()
        )))
     {
         $top->_curr_comps()->[-1] = $self->_curr_file();
@@ -62,7 +60,6 @@ sub new {
     bless $self, $class;
 
     $top->_fill_actions($self);
-    $self->idx(0);
 
     return $self;
 }
@@ -92,6 +89,7 @@ sub _move_next
             $top->_fill_actions($self);
             $top->_mystat();
             $self->_stat_ret($top->_top_stat_copy());
+            $top->_dev($self->_dev);
             return 1;
         }
     }
@@ -130,10 +128,12 @@ use Class::XSAccessor
     accessors => {
         (map { $_ => $_ } 
         (qw(
+            _check_subdir_h
             _curr_comps
             _current
             _curr_path
             _def_actions
+            _dev
             _dir_stack
             item_obj
             _target_index
@@ -153,6 +153,9 @@ use Class::XSAccessor
 # and the other if it's false.
 #
 # This has been a common pattern in the code and should be eliminated.
+#
+# _d is the deep method.
+# and _t is the top one.
 
 sub _top_it
 {
@@ -164,13 +167,13 @@ sub _top_it
         *{$pkg."::".$method} =
             do {
                 my $m = $method;
-                my $top = "_top_$m";
-                my $non = "_non_top_$m";
+                my $t = $m . "_t";
+                my $d = $m . "_d";
                 sub {
                     my $self = shift;
                     return exists($self->{_st})
-                        ? $self->$non(@_)
-                        : $self->$top(@_)
+                        ? $self->$d(@_)
+                        : $self->$t(@_)
                         ;
                 };
             };
@@ -180,8 +183,6 @@ sub _top_it
 }
 
 __PACKAGE__->_top_it([qw(
-    _check_subdir_helper
-    _father_components
     _me_die
     )]
 );
@@ -193,7 +194,7 @@ __PACKAGE__->_make_copy_methods([qw(
 
 use Carp;
 
-our $VERSION = '0.1.7';
+our $VERSION = '0.1.8';
 
 sub new {
     my ($class, $options, @targets) = @_;
@@ -213,6 +214,8 @@ sub new {
         $tree->$opt($options->{$opt});
     }
 
+    $tree->_gen_check_subdir_helper();
+
     $tree->_targets(\@targets);
     $tree->_target_index(-1);
 
@@ -226,28 +229,6 @@ sub new {
 
     return $tree;
 }
-
-#sub DESTROY {
-#    my ($self) = @_;
-#    print STDERR join(" ", caller)."\n";
-#    printf STDERR "destroy `%s'\n", $self->_dir_as_string || "--";
-#}
-
-=begin Removed
-
-# We're removing this because it's no longer used, but may be used in the
-# future.
-
-sub _is_top
-{
-    my $self = shift;
-
-    return ! exists($self->{_st});
-}
-
-=end Removed
-
-=cut
 
 sub _curr_not_a_dir {
     return !shift->_top_is_dir();
@@ -282,30 +263,21 @@ sub _calc_current_item_obj {
         $ret->{basename} = pop(@comps);
     }
 
-    return File::Find::Object::Result->new($ret);
-}
-
-sub _calc_next_obj {
-    my ($self) = @_;
-    while (1) {
-        if ($self->_process_current())
-        {
-            return $self->item_obj();
-        }
-        if(!$self->_master_move_to_next) {
-            if ($self->_me_die())
-            {
-                $self->item_obj(undef());
-                return undef();
-            }
-        }
-    }
+    return bless $ret, "File::Find::Object::Result";
 }
 
 sub next_obj {
     my $self = shift;
 
-    return $self->_calc_next_obj();
+    until (     $self->_process_current 
+            || ((!$self->_master_move_to_next())
+               && $self->_me_die())
+            )
+    {
+        # Do nothing
+    }
+
+    return $self->item_obj();
 }
 
 sub next {
@@ -322,24 +294,8 @@ sub item {
     return $self->item_obj() ? $self->item_obj()->path() : undef;
 }
 
-sub _father
-{
-    my ($self, $level) = @_;
-
-    if ($level->idx() == 0)
-    {
-        return undef;
-    }
-    else
-    {
-        return $self->_dir_stack()->[$level->idx()-1];
-    }
-}
-
 sub _current_father {
-    my $self = shift;
-
-    return $self->_father($self->_current);
+    return shift->_dir_stack->[-2];
 }
 
 sub _increment_target_index
@@ -365,11 +321,13 @@ sub _master_move_to_next {
     return $self->_current()->_move_next($self);
 }
 
-sub _top__me_die {
+sub _me_die_t {
+    shift->item_obj(undef());
+
     return 1;
 }
 
-sub _non_top__me_die {
+sub _me_die_d {
     my $self = shift;
 
     return $self->_become_default();
@@ -379,22 +337,18 @@ sub _become_default
 {
     my $self = shift;
 
-    my $father = $self->_current_father;
-
     my $st = $self->_dir_stack();
 
-    if ($father->idx == 0)
+    pop(@$st);
+    $self->_current($st->[-1]);
+    pop(@{$self->_curr_comps()});
+
+    if (@$st == 1)
     {
-        splice(@$st, 1);
-        $self->_current($st->[-1]);
         delete($self->{_st});
     }
     else
     {
-        splice(@$st, $father->idx()+1);
-        splice(@{$self->_curr_comps()}, $father->idx()+1);
-        $self->_current($st->[-1]);
-        
         # If depth is false, then we no longer need the _curr_path
         # of the directories above the previously-set value, because we 
         # already traversed them.
@@ -510,8 +464,7 @@ sub _recurse
         $self->_current(
             File::Find::Object::DeepPath->new(
                 $self,
-                $self->_current(),
-                scalar(@{$self->_dir_stack()})
+                $self->_current()
             )
         );
 
@@ -541,22 +494,11 @@ sub _check_subdir
     }
     else
     {
-        return $self->_check_subdir_helper();
+        return $self->_check_subdir_h()->($self);
     }
 }
 
-sub _top__check_subdir_helper {
-    return 1;
-}
 
-sub _find_ancestor_with_same_inode {
-    my $self = shift;
-
-    my $s = $self->_top_stat();
-    my $stack = $self->_dir_stack();
-
-    return List::Util::first { $_->_is_same_inode($s) } @{$stack}[0 .. $#$stack-1];
-}
 
 sub _warn_about_loop
 {
@@ -577,27 +519,53 @@ sub _warn_about_loop
     return;
 }
 
-sub _non_top__check_subdir_helper {
+sub _is_loop {
     my $self = shift;
 
-    if ($self->_top_is_link() && !$self->followlink())
-    {
-        return 0;
-    }
+    my $s = $self->_top_stat();
+    my $stack = $self->_dir_stack();
 
-    if (   $self->_top_stat->[0] != $self->_current_father->_dev()
-        && $self->nocrossfs()
-    )
-    {
-        return 0;
-    }
-
-    if (my $ptr = $self->_find_ancestor_with_same_inode()) {
+    if (defined(my $ptr = List::Util::first { $_->_is_same_inode($s) } @{$stack}[0 .. $#$stack-1])) {
         $self->_warn_about_loop($ptr);
-        return 0;
+        return 1;
+    }
+    else {
+        return;
+    }
+}
+
+# We eval "" the helper of check_subdir because the conditions that
+# affect the checks are instance-wide and constant and so we can
+# determine how the code should look like.
+
+sub _gen_check_subdir_helper {
+    my $self = shift;
+
+    my @clauses;
+
+    if (!$self->followlink()) {
+        push @clauses, '$s->_top_is_link()';
+    }
+    
+    if ($self->nocrossfs()) {
+        push @clauses, '($s->_top_stat->[0] != $s->_dev())';
     }
 
-    return 1;
+    push @clauses, '$s->_is_loop()';
+
+    $self->_check_subdir_h(
+        _context_less_eval(
+          'sub { my $s = shift; ' 
+        . 'return ((!exists($s->{_st})) || !('
+        . join("||", @clauses) . '));'
+        . '}'
+        )
+    );
+}
+
+sub _context_less_eval {
+    my $code = shift;
+    return eval $code;
 }
 
 sub _open_dir {
