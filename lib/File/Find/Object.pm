@@ -3,6 +3,8 @@ package File::Find::Object::DeepPath;
 use strict;
 use warnings;
 
+use integer;
+
 use base 'File::Find::Object::PathComp';
 
 use File::Spec;
@@ -15,6 +17,13 @@ sub new {
 
     $self->_dir([ @{$top->_curr_comps()} ]);
     $self->_stat_ret($top->_top_stat_copy());
+
+    my $find = { %{$from->_inodes()} };
+    if (my $inode = $self->_inode) {
+        $find->{join(",", $self->_dev(), $inode)} =
+            scalar(@{$top->_dir_stack()});
+    }
+    $self->_set_inodes($find);
 
     $self->_last_dir_scanned(undef);
 
@@ -90,6 +99,17 @@ sub _move_next
             $top->_mystat();
             $self->_stat_ret($top->_top_stat_copy());
             $top->_dev($self->_dev);
+
+            my $inode = $self->_inode();
+            $self->_set_inodes(
+                ($inode == 0)
+                ? {}
+                :
+                {
+                    join(",", $self->_dev(), $inode) => 0,
+                },
+            );
+
             return 1;
         }
     }
@@ -148,45 +168,6 @@ use Class::XSAccessor
     }
     ;
 
-# This is a variation of the Conditional-to-Inheritance refactoring - 
-# we have two methods - one if _is_top is true
-# and the other if it's false.
-#
-# This has been a common pattern in the code and should be eliminated.
-#
-# _d is the deep method.
-# and _t is the top one.
-
-sub _top_it
-{
-    my ($pkg, $methods) = @_;
-
-    no strict 'refs';
-    foreach my $method (@$methods)
-    {
-        *{$pkg."::".$method} =
-            do {
-                my $m = $method;
-                my $t = $m . "_t";
-                my $d = $m . "_d";
-                sub {
-                    my $self = shift;
-                    return exists($self->{_st})
-                        ? $self->$d(@_)
-                        : $self->$t(@_)
-                        ;
-                };
-            };
-    }
-
-    return;
-}
-
-__PACKAGE__->_top_it([qw(
-    _me_die
-    )]
-);
-
 __PACKAGE__->_make_copy_methods([qw(
     _top_stat
     )]
@@ -194,12 +175,12 @@ __PACKAGE__->_make_copy_methods([qw(
 
 use Carp;
 
-our $VERSION = '0.1.8';
+our $VERSION = '0.1.9';
 
 sub new {
     my ($class, $options, @targets) = @_;
 
-    # The *existence* of a _st key inside the struct
+    # The *existence* of an _st key inside the struct
     # indicates that the stack is full.
     # So now it's empty.
     my $tree = {
@@ -321,16 +302,15 @@ sub _master_move_to_next {
     return $self->_current()->_move_next($self);
 }
 
-sub _me_die_t {
-    shift->item_obj(undef());
-
-    return 1;
-}
-
-sub _me_die_d {
+sub _me_die {
     my $self = shift;
 
-    return $self->_become_default();
+    if (exists($self->{_st})) {
+        return $self->_become_default();
+    }
+
+    $self->item_obj(undef());
+    return 1;
 }
 
 sub _become_default
@@ -522,11 +502,11 @@ sub _warn_about_loop
 sub _is_loop {
     my $self = shift;
 
-    my $s = $self->_top_stat();
-    my $stack = $self->_dir_stack();
+    my $key = join(",", @{$self->_top_stat()}[0,1]);
+    my $lookup = $self->_current->_inodes;
 
-    if (defined(my $ptr = List::Util::first { $_->_is_same_inode($s) } @{$stack}[0 .. $#$stack-1])) {
-        $self->_warn_about_loop($ptr);
+    if (exists($lookup->{$key})) {
+        $self->_warn_about_loop($self->_dir_stack->[$lookup->{$key}]);
         return 1;
     }
     else {
