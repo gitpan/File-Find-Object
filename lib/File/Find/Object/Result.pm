@@ -10,6 +10,9 @@ use Class::XSAccessor
         (map { $_ => $_ } (qw(
         base
         basename
+        is_dir
+        is_file
+        is_link
         path
         dir_components
         stat_ret
@@ -27,11 +30,6 @@ sub new
     bless $self, $class;
 
     return $self;
-}
-
-sub is_dir
-{
-    return S_ISDIR(shift->stat_ret->[2]);
 }
 
 sub full_components
@@ -74,6 +72,15 @@ is equivalent to C<< $ffo->next() >> .
 =head2 $result->is_dir()
 
 Returns true if the result refers to a directory.
+
+=head2 $result->is_file()
+
+Returns true if the result refers to a plain file (equivalent to the Perl
+C<-f> operator).
+
+=head2 $result->is_link()
+
+Returns true if the result is a symbolic link.
 
 =head2 $result->dir_components()
 
