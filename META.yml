@@ -1,6 +1,6 @@
 ---
 name: File-Find-Object
-version: 0.2.2
+version: v0.2.3
 author: []
 abstract: An object oriented File::Find replacement
 license: perl
@@ -8,6 +8,9 @@ resources:
   Repository: svn+ssh://nanardon.zarb.org/home/svn/File-Find-Object/trunk
   homepage: http://www.shlomifish.org/open-source/projects/File-Find-Object/
   license: http://www.perlfoundation.org/artistic_license_2_0
+build_requires:
+  File::Path: 0
+  Test::More: 0
 requires:
   Carp: 0
   Class::XSAccessor: 0
@@ -17,13 +20,12 @@ requires:
   base: 0
   strict: 0
   warnings: 0
-build_requires:
-  File::Path: 0
-  Test::More: 0
+configure_requires:
+  Module::Build: 0.34
 provides:
   File::Find::Object:
     file: lib/File/Find/Object.pm
-    version: 0.2.2
+    version: v0.2.3
   File::Find::Object::Base:
     file: lib/File/Find/Object/Base.pm
   File::Find::Object::DeepPath:
@@ -34,7 +36,7 @@ provides:
     file: lib/File/Find/Object/Result.pm
   File::Find::Object::TopPath:
     file: lib/File/Find/Object.pm
-generated_by: Module::Build version 0.33
+generated_by: Module::Build version 0.34
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
