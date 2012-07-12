@@ -1,10 +1,13 @@
 #!/usr/bin/perl
 
-# $Id: 01ffo.t 197 2009-01-14 12:09:42Z shlomif $
+# $Id$
 
 use strict;
 use warnings;
+
 use Test::More tests => 4;
+
+use File::Path qw(rmtree);
 
 # TEST
 use_ok('File::Find::Object', "Can use main NBackup::Tree");
@@ -54,3 +57,5 @@ ok (
     "Avoid loop warning",
 );
 
+# Cleanup
+rmtree('t/dir', 0, 1);

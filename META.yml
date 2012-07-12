@@ -1,45 +1,14 @@
 ---
-name: File-Find-Object
-version: v0.2.3
-author: []
-abstract: An object oriented File::Find replacement
-license: perl
-resources:
-  Repository: svn+ssh://nanardon.zarb.org/home/svn/File-Find-Object/trunk
-  homepage: http://www.shlomifish.org/open-source/projects/File-Find-Object/
-  license: http://www.perlfoundation.org/artistic_license_2_0
+abstract: 'An object oriented File::Find replacement'
+author:
+  - unknown
 build_requires:
   File::Path: 0
   Test::More: 0
-requires:
-  Carp: 0
-  Class::XSAccessor: 0
-  Fcntl: 0
-  File::Spec: 0
-  List::Util: 0
-  base: 0
-  strict: 0
-  warnings: 0
 configure_requires:
-  Module::Build: 0.34
-provides:
-  File::Find::Object:
-    file: lib/File/Find/Object.pm
-    version: v0.2.3
-  File::Find::Object::Base:
-    file: lib/File/Find/Object/Base.pm
-  File::Find::Object::DeepPath:
-    file: lib/File/Find/Object.pm
-  File::Find::Object::PathComp:
-    file: lib/File/Find/Object/PathComp.pm
-  File::Find::Object::Result:
-    file: lib/File/Find/Object/Result.pm
-  File::Find::Object::TopPath:
-    file: lib/File/Find/Object.pm
-generated_by: Module::Build version 0.34
-meta-spec:
-  url: http://module-build.sourceforge.net/META-spec-v1.4.html
-  version: 1.4
+  Module::Build: 0.39
+dynamic_config: 1
+generated_by: 'Module::Build version 0.3901, CPAN::Meta::Converter version 2.120921'
 keywords:
   - alternative-to-core
   - directories
@@ -61,3 +30,42 @@ keywords:
   - traversal
   - traverse
   - tree
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: File-Find-Object
+provides:
+  File::Find::Object:
+    file: lib/File/Find/Object.pm
+    version: v0.2.4
+  File::Find::Object::Base:
+    file: lib/File/Find/Object/Base.pm
+    version: 0
+  File::Find::Object::DeepPath:
+    file: lib/File/Find/Object.pm
+    version: 0
+  File::Find::Object::PathComp:
+    file: lib/File/Find/Object/PathComp.pm
+    version: 0
+  File::Find::Object::Result:
+    file: lib/File/Find/Object/Result.pm
+    version: 0
+  File::Find::Object::TopPath:
+    file: lib/File/Find/Object.pm
+    version: 0
+requires:
+  Carp: 0
+  Class::XSAccessor: 0
+  Fcntl: 0
+  File::Spec: 0
+  List::Util: 0
+  base: 0
+  strict: 0
+  warnings: 0
+resources:
+  homepage: http://www.shlomifish.org/open-source/projects/File-Find-Object/
+  license: http://www.perlfoundation.org/artistic_license_2_0
+  repository: https://bitbucket.org/shlomif/perl-file-find-object
+  x_Repository: https://bitbucket.org/shlomif/perl-file-find-object
+version: v0.2.4
