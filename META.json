@@ -44,7 +44,7 @@
       },
       "configure" : {
          "requires" : {
-            "Module::Build" : "0.39"
+            "Module::Build" : "0.36"
          }
       },
       "runtime" : {
@@ -63,7 +63,7 @@
    "provides" : {
       "File::Find::Object" : {
          "file" : "lib/File/Find/Object.pm",
-         "version" : "v0.2.6"
+         "version" : "v0.2.7"
       },
       "File::Find::Object::Base" : {
          "file" : "lib/File/Find/Object/Base.pm",
@@ -97,5 +97,5 @@
       },
       "x_Repository" : "https://bitbucket.org/shlomif/perl-file-find-object"
    },
-   "version" : "v0.2.6"
+   "version" : "v0.2.7"
 }

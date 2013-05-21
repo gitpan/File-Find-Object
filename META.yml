@@ -6,7 +6,7 @@ build_requires:
   File::Path: 0
   Test::More: 0
 configure_requires:
-  Module::Build: 0.39
+  Module::Build: 0.36
 dynamic_config: 1
 generated_by: 'Module::Build version 0.3901, CPAN::Meta::Converter version 2.120921'
 keywords:
@@ -38,7 +38,7 @@ name: File-Find-Object
 provides:
   File::Find::Object:
     file: lib/File/Find/Object.pm
-    version: v0.2.6
+    version: v0.2.7
   File::Find::Object::Base:
     file: lib/File/Find/Object/Base.pm
     version: 0
@@ -68,4 +68,4 @@ resources:
   license: http://www.perlfoundation.org/artistic_license_2_0
   repository: https://bitbucket.org/shlomif/perl-file-find-object
   x_Repository: https://bitbucket.org/shlomif/perl-file-find-object
-version: v0.2.6
+version: v0.2.7
