@@ -8,7 +8,7 @@ build_requires:
 configure_requires:
   Module::Build: 0.36
 dynamic_config: 1
-generated_by: 'Module::Build version 0.3901, CPAN::Meta::Converter version 2.120921'
+generated_by: 'Module::Build version 0.4007, CPAN::Meta::Converter version 2.132140'
 keywords:
   - alternative-to-core
   - directories
@@ -38,22 +38,17 @@ name: File-Find-Object
 provides:
   File::Find::Object:
     file: lib/File/Find/Object.pm
-    version: v0.2.7
+    version: v0.2.8
   File::Find::Object::Base:
     file: lib/File/Find/Object/Base.pm
-    version: 0
   File::Find::Object::DeepPath:
     file: lib/File/Find/Object.pm
-    version: 0
   File::Find::Object::PathComp:
     file: lib/File/Find/Object/PathComp.pm
-    version: 0
   File::Find::Object::Result:
     file: lib/File/Find/Object/Result.pm
-    version: 0
   File::Find::Object::TopPath:
     file: lib/File/Find/Object.pm
-    version: 0
 requires:
   Carp: 0
   Class::XSAccessor: 0
@@ -67,5 +62,4 @@ resources:
   homepage: http://www.shlomifish.org/open-source/projects/File-Find-Object/
   license: http://www.perlfoundation.org/artistic_license_2_0
   repository: https://bitbucket.org/shlomif/perl-file-find-object
-  x_Repository: https://bitbucket.org/shlomif/perl-file-find-object
-version: v0.2.7
+version: v0.2.8
