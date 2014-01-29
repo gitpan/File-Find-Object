@@ -16,12 +16,13 @@ my $builder = Test::Run::Builder->new(
     },
     'requires' =>
     {
-        'base' => 0,
         'Carp' => 0,
         'Class::XSAccessor' => 0,
         'Fcntl' => 0,
         'File::Spec' => 0,
         'List::Util' => 0,
+        'parent' => 0,
+        'perl' => '5.008',
         'strict' => 0,
         'warnings' => 0,
     },
@@ -29,7 +30,7 @@ my $builder = Test::Run::Builder->new(
     {
         'Module::Build' => 0.36,
     },
-    'license' => "perl",
+    'license' => "artistic_2",
     meta_merge => {
         resources => {
             homepage => "http://www.shlomifish.org/open-source/projects/File-Find-Object/",

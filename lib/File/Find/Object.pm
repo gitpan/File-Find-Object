@@ -3,9 +3,11 @@ package File::Find::Object::DeepPath;
 use strict;
 use warnings;
 
+use 5.008;
+
 use integer;
 
-use base 'File::Find::Object::PathComp';
+use parent 'File::Find::Object::PathComp';
 
 use File::Spec;
 
@@ -56,7 +58,7 @@ sub _move_next
 
 package File::Find::Object::TopPath;
 
-use base 'File::Find::Object::PathComp';
+use parent 'File::Find::Object::PathComp';
 
 sub new {
     my $class = shift;
@@ -119,7 +121,7 @@ package File::Find::Object;
 use strict;
 use warnings;
 
-use base 'File::Find::Object::Base';
+use parent 'File::Find::Object::Base';
 
 use File::Find::Object::Result;
 
@@ -172,7 +174,7 @@ __PACKAGE__->_make_copy_methods([qw(
 
 use Carp;
 
-our $VERSION = '0.2.8';
+our $VERSION = '0.2.9';
 
 sub new {
     my ($class, $options, @targets) = @_;
