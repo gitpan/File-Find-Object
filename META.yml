@@ -3,12 +3,12 @@ abstract: 'An object oriented File::Find replacement'
 author:
   - unknown
 build_requires:
-  File::Path: 0
-  Test::More: 0
+  File::Path: '0'
+  Test::More: '0'
 configure_requires:
-  Module::Build: 0.36
+  Module::Build: '0.36'
 dynamic_config: 1
-generated_by: 'Module::Build version 0.4007, CPAN::Meta::Converter version 2.132830'
+generated_by: 'Module::Build version 0.4205, CPAN::Meta::Converter version 2.140640'
 keywords:
   - alternative-to-core
   - directories
@@ -33,12 +33,12 @@ keywords:
 license: artistic_2
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
-  version: 1.4
+  version: '1.4'
 name: File-Find-Object
 provides:
   File::Find::Object:
     file: lib/File/Find/Object.pm
-    version: v0.2.9
+    version: v0.2.10
   File::Find::Object::Base:
     file: lib/File/Find/Object/Base.pm
   File::Find::Object::DeepPath:
@@ -50,17 +50,17 @@ provides:
   File::Find::Object::TopPath:
     file: lib/File/Find/Object.pm
 requires:
-  Carp: 0
-  Class::XSAccessor: 0
-  Fcntl: 0
-  File::Spec: 0
-  List::Util: 0
-  parent: 0
-  perl: 5.008
-  strict: 0
-  warnings: 0
+  Carp: '0'
+  Class::XSAccessor: '0'
+  Fcntl: '0'
+  File::Spec: '0'
+  List::Util: '0'
+  parent: '0'
+  perl: '5.008'
+  strict: '0'
+  warnings: '0'
 resources:
   homepage: http://www.shlomifish.org/open-source/projects/File-Find-Object/
   license: http://www.perlfoundation.org/artistic_license_2_0
   repository: https://bitbucket.org/shlomif/perl-file-find-object
-version: v0.2.9
+version: v0.2.10
