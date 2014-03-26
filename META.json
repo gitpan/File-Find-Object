@@ -62,22 +62,27 @@
    "provides" : {
       "File::Find::Object" : {
          "file" : "lib/File/Find/Object.pm",
-         "version" : "v0.2.10"
+         "version" : "v0.2.11"
       },
       "File::Find::Object::Base" : {
-         "file" : "lib/File/Find/Object/Base.pm"
+         "file" : "lib/File/Find/Object/Base.pm",
+         "version" : "v0.2.11"
       },
       "File::Find::Object::DeepPath" : {
-         "file" : "lib/File/Find/Object.pm"
+         "file" : "lib/File/Find/Object.pm",
+         "version" : "v0.2.11"
       },
       "File::Find::Object::PathComp" : {
-         "file" : "lib/File/Find/Object/PathComp.pm"
+         "file" : "lib/File/Find/Object/PathComp.pm",
+         "version" : "v0.2.11"
       },
       "File::Find::Object::Result" : {
-         "file" : "lib/File/Find/Object/Result.pm"
+         "file" : "lib/File/Find/Object/Result.pm",
+         "version" : "v0.2.11"
       },
       "File::Find::Object::TopPath" : {
-         "file" : "lib/File/Find/Object.pm"
+         "file" : "lib/File/Find/Object.pm",
+         "version" : "v0.2.11"
       }
    },
    "release_status" : "stable",
@@ -90,5 +95,5 @@
          "url" : "https://bitbucket.org/shlomif/perl-file-find-object"
       }
    },
-   "version" : "v0.2.10"
+   "version" : "v0.2.11"
 }
