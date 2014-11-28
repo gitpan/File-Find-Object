@@ -1,8 +1,10 @@
 {
    "abstract" : "An object oriented File::Find replacement",
-   "author" : [],
+   "author" : [
+      "unknown"
+   ],
    "dynamic_config" : 1,
-   "generated_by" : "Module::Build version 0.4205",
+   "generated_by" : "Module::Build version 0.421",
    "keywords" : [
       "alternative-to-core",
       "directories",
@@ -62,27 +64,27 @@
    "provides" : {
       "File::Find::Object" : {
          "file" : "lib/File/Find/Object.pm",
-         "version" : "v0.2.11"
+         "version" : "v0.2.12"
       },
       "File::Find::Object::Base" : {
          "file" : "lib/File/Find/Object/Base.pm",
-         "version" : "v0.2.11"
+         "version" : "v0.2.12"
       },
       "File::Find::Object::DeepPath" : {
          "file" : "lib/File/Find/Object.pm",
-         "version" : "v0.2.11"
+         "version" : "v0.2.12"
       },
       "File::Find::Object::PathComp" : {
          "file" : "lib/File/Find/Object/PathComp.pm",
-         "version" : "v0.2.11"
+         "version" : "v0.2.12"
       },
       "File::Find::Object::Result" : {
          "file" : "lib/File/Find/Object/Result.pm",
-         "version" : "v0.2.11"
+         "version" : "v0.2.12"
       },
       "File::Find::Object::TopPath" : {
          "file" : "lib/File/Find/Object.pm",
-         "version" : "v0.2.11"
+         "version" : "v0.2.12"
       }
    },
    "release_status" : "stable",
@@ -95,5 +97,5 @@
          "url" : "https://bitbucket.org/shlomif/perl-file-find-object"
       }
    },
-   "version" : "v0.2.11"
+   "version" : "v0.2.12"
 }
